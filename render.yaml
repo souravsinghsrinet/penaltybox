@@ -1,0 +1,42 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: penaltybox-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: penaltybox-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 30
+    healthCheckPath: /ping
+
+  # Frontend Static Site
+  - type: web
+    name: penaltybox-frontend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon
+    plan: free
+    buildCommand: echo "Building with Dockerfile"
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://penaltybox-backend.onrender.com
+
+databases:
+  # PostgreSQL Database
+  - name: penaltybox-db
+    databaseName: penaltybox
+    user: postgres
+    region: oregon
+    plan: free
