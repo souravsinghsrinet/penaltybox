@@ -10,7 +10,10 @@ COPY . .
 # Create uploads directory
 RUN mkdir -p uploads/proofs
 
+# Make start script executable
+RUN chmod +x start.sh
+
 # Add the current directory to PYTHONPATH
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./start.sh"]
