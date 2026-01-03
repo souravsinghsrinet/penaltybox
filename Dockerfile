@@ -10,4 +10,7 @@ COPY . .
 # Create uploads directory
 RUN mkdir -p uploads/proofs
 
+# Add the current directory to PYTHONPATH
+ENV PYTHONPATH=/app
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

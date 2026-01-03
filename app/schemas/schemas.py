@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional, List
+from enum import Enum
 
 # User schemas
 class UserBase(BaseModel):
@@ -112,3 +113,10 @@ class Payment(PaymentBase):
 
     class Config:
         from_attributes = True
+
+
+class LeaderboardSortBy(str, Enum):
+    TOTAL_PENALTIES = "total_penalties"
+    TOTAL_AMOUNT = "total_amount"
+    PAID_AMOUNT = "paid_amount"
+    UNPAID_AMOUNT = "unpaid_amount"
