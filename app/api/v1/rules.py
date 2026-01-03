@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.models.models import Rule, Group
+from app.models.models import Rule, Group, User
 from app.schemas.schemas import RuleCreate, Rule as RuleSchema
-from app.api.v1.auth import oauth2_scheme
+from app.api.v1.auth import oauth2_scheme, get_current_user, get_current_admin_user
 
 router = APIRouter()
 
@@ -14,7 +14,7 @@ def create_rule(
     group_id: int,
     rule: RuleCreate,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_admin: User = Depends(get_current_admin_user)  # Only admins can create rules
 ):
     # Check if group exists
     group = db.query(Group).filter(Group.id == group_id).first()
@@ -40,7 +40,7 @@ def create_rule(
 def get_group_rules(
     group_id: int,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_user: User = Depends(get_current_user)  # Any authenticated user can view rules
 ):
     # Check if group exists
     group = db.query(Group).filter(Group.id == group_id).first()
@@ -59,7 +59,7 @@ def delete_rule(
     group_id: int,
     rule_id: int,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_admin: User = Depends(get_current_admin_user)  # Only admins can delete rules
 ):
     # Check if rule exists and belongs to the group
     rule = db.query(Rule).filter(Rule.id == rule_id, Rule.group_id == group_id).first()

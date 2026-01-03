@@ -17,6 +17,7 @@ class UserLogin(BaseModel):
 
 class User(UserBase):
     id: int
+    is_admin: bool
     group_id: Optional[int] = None
     balance: float
     created_at: datetime

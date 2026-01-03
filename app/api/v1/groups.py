@@ -6,14 +6,14 @@ from typing import List
 from app.core.database import get_db
 from app.models.models import Group, User, Penalty
 from app.schemas.schemas import GroupCreate, Group as GroupSchema, LeaderboardSortBy
-from app.api.v1.auth import oauth2_scheme
+from app.api.v1.auth import oauth2_scheme, get_current_user, get_current_admin_user
 
 router = APIRouter()
 
 @router.get("/", response_model=List[GroupSchema])
 def get_groups(
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_user: User = Depends(get_current_user)  # Any authenticated user can view groups
 ):
     return db.query(Group).all()
 
@@ -21,7 +21,7 @@ def get_groups(
 def create_group(
     group: GroupCreate,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_admin: User = Depends(get_current_admin_user)  # Only admins can create groups
 ):
     db_group = Group(**group.dict())
     db.add(db_group)
@@ -33,7 +33,7 @@ def create_group(
 def get_group(
     group_id: int,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_user: User = Depends(get_current_user)  # Any authenticated user can view
 ):
     db_group = db.query(Group).filter(Group.id == group_id).first()
     if db_group is None:
@@ -48,7 +48,7 @@ def add_member_to_group(
     group_id: int,
     user_id: int,
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_admin: User = Depends(get_current_admin_user)  # Only admins can add members
 ):
     # Check if group exists
     group = db.query(Group).filter(Group.id == group_id).first()
@@ -89,7 +89,7 @@ def get_group_leaderboard(
         description="Field to sort the leaderboard by"
     ),
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)
+    current_user: User = Depends(get_current_user)  # Any authenticated user can view leaderboard
 ):
     # Check if group exists
     group = db.query(Group).filter(Group.id == group_id).first()

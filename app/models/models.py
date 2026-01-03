@@ -11,6 +11,7 @@ class User(Base):
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    is_admin = Column(Boolean, default=False)  # Admin flag
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
     balance = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
