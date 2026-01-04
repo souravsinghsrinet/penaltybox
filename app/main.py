@@ -17,13 +17,14 @@ app.add_middleware(
 )
 
 # Import and include routers
-from app.api.v1 import auth, groups, penalties, proofs, rules
+from app.api.v1 import auth, groups, penalties, proofs, rules, users
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(groups.router, prefix="/groups", tags=["Groups"])
 app.include_router(penalties.router, prefix="/penalties", tags=["Penalties"])
 app.include_router(proofs.router, prefix="/proofs", tags=["Proofs"])
 app.include_router(rules.router, prefix="/groups", tags=["Rules"])
+app.include_router(users.router, prefix="/users", tags=["Users"])
 
 @app.get("/")
 async def root():

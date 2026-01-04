@@ -1,8 +1,18 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime, Table
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from app.core.database import Base
+
+# Association table for many-to-many relationship between users and groups
+user_groups = Table(
+    'user_groups',
+    Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
+    Column('group_id', Integer, ForeignKey('groups.id'), primary_key=True),
+    Column('role', String, default='member'),  # 'admin' or 'member'
+    Column('joined_at', DateTime, default=datetime.utcnow)
+)
 
 class User(Base):
     __tablename__ = "users"
@@ -11,13 +21,12 @@ class User(Base):
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    is_admin = Column(Boolean, default=False)  # Admin flag
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    is_admin = Column(Boolean, default=False)  # Global admin flag for app-level permissions
     balance = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    group = relationship("Group", back_populates="members")
+    groups = relationship("Group", secondary=user_groups, back_populates="members")
     penalties = relationship("Penalty", back_populates="user")
     payments = relationship("Payment", back_populates="user")
 
@@ -26,10 +35,11 @@ class Group(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
+    description = Column(String, nullable=True)  # Added description field
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    members = relationship("User", back_populates="group")
+    members = relationship("User", secondary=user_groups, back_populates="groups")
     penalties = relationship("Penalty", back_populates="group")
     rules = relationship("Rule", back_populates="group")
 

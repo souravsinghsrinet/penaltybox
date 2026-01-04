@@ -15,10 +15,19 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class UserSimple(BaseModel):
+    """Simple user info without circular references"""
+    id: int
+    name: str
+    email: EmailStr
+    is_admin: bool
+
+    class Config:
+        from_attributes = True
+
 class User(UserBase):
     id: int
     is_admin: bool
-    group_id: Optional[int] = None
     balance: float
     created_at: datetime
 
@@ -37,17 +46,47 @@ class TokenData(BaseModel):
 # Group schemas
 class GroupBase(BaseModel):
     name: str
+    description: Optional[str] = None
 
 class GroupCreate(GroupBase):
     pass
 
-class Group(GroupBase):
+class GroupMember(BaseModel):
+    """Member info with their role in the group"""
     id: int
-    created_at: datetime
-    members: List[User] = []
+    name: str
+    email: EmailStr
+    role: str  # 'admin' or 'member'
+    joined_at: datetime
 
     class Config:
         from_attributes = True
+
+class GroupSimple(GroupBase):
+    """Simple group info without members list"""
+    id: int
+    created_at: datetime
+    member_count: int = 0
+    admin_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+class Group(GroupBase):
+    """Full group info with members"""
+    id: int
+    created_at: datetime
+    members: List[GroupMember] = []
+
+    class Config:
+        from_attributes = True
+
+class AddMemberRequest(BaseModel):
+    user_id: int
+    role: str = "member"  # 'admin' or 'member'
+
+class RemoveMemberRequest(BaseModel):
+    user_id: int
 
 # Rule schemas
 class RuleBase(BaseModel):
