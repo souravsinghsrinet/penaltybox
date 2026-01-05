@@ -4,7 +4,7 @@ from typing import List
 
 from app.core.database import get_db
 from app.models.models import Rule, Group, User
-from app.schemas.schemas import RuleCreate, Rule as RuleSchema
+from app.schemas.schemas import RuleCreate, RuleUpdate, Rule as RuleSchema
 from app.api.v1.auth import oauth2_scheme, get_current_user, get_current_admin_user
 
 router = APIRouter()
@@ -53,6 +53,32 @@ def get_group_rules(
     # Get all rules for the group
     rules = db.query(Rule).filter(Rule.group_id == group_id).all()
     return rules
+
+@router.put("/{group_id}/rules/{rule_id}", response_model=RuleSchema)
+def update_rule(
+    group_id: int,
+    rule_id: int,
+    rule_update: RuleUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)  # Only admins can update rules
+):
+    # Check if rule exists and belongs to the group
+    rule = db.query(Rule).filter(Rule.id == rule_id, Rule.group_id == group_id).first()
+    if not rule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Rule not found or doesn't belong to the specified group"
+        )
+    
+    # Update rule fields if provided
+    if rule_update.title is not None:
+        rule.title = rule_update.title
+    if rule_update.amount is not None:
+        rule.amount = rule_update.amount
+    
+    db.commit()
+    db.refresh(rule)
+    return rule
 
 @router.delete("/{group_id}/rules/{rule_id}", status_code=status.HTTP_200_OK)
 def delete_rule(

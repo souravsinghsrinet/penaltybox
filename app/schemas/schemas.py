@@ -94,7 +94,11 @@ class RuleBase(BaseModel):
     amount: float
 
 class RuleCreate(RuleBase):
-    group_id: int
+    pass
+
+class RuleUpdate(BaseModel):
+    title: Optional[str] = None
+    amount: Optional[float] = None
 
 class Rule(RuleBase):
     id: int
