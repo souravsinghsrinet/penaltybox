@@ -401,3 +401,95 @@ def get_group_leaderboard(
         "sort_by": sort_by,
         "leaderboard": result
     }
+
+@router.get("/leaderboard/global", status_code=status.HTTP_200_OK)
+def get_global_leaderboard(
+    sort_by: LeaderboardSortBy = Query(
+        default=LeaderboardSortBy.TOTAL_PENALTIES,
+        description="Field to sort the leaderboard by"
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get global leaderboard across all groups the user is a member of."""
+    # Get all groups the user is a member of
+    user_group_ids = db.execute(
+        user_groups.select().where(user_groups.c.user_id == current_user.id)
+    ).fetchall()
+    
+    group_ids = [g.group_id for g in user_group_ids]
+    
+    if not group_ids:
+        return {
+            "total_groups": 0,
+            "sort_by": sort_by,
+            "leaderboard": []
+        }
+    
+    # Get all unique members from these groups
+    all_members = db.execute(
+        user_groups.select().where(user_groups.c.group_id.in_(group_ids))
+    ).fetchall()
+    
+    member_ids = list(set([m.user_id for m in all_members]))
+    
+    # Calculate unpaid amount using a subquery for sorting
+    unpaid_amount = func.coalesce(
+        func.sum(Penalty.amount), 0
+    ) - func.coalesce(
+        func.sum(case((Penalty.status == 'PAID', Penalty.amount), else_=0)), 0
+    )
+
+    # Base query with all needed fields (across all groups)
+    from sqlalchemy.sql import label
+    base_query = (
+        db.query(
+            User.id,
+            User.name,
+            User.email,
+            label('total_penalties', func.count(Penalty.id)),
+            label('total_amount', func.coalesce(func.sum(Penalty.amount), 0)),
+            label('paid_amount', func.coalesce(func.sum(
+                case((Penalty.status == 'PAID', Penalty.amount), else_=0)
+            ), 0)),
+            label('unpaid_amount', unpaid_amount)
+        )
+        .outerjoin(Penalty, and_(Penalty.user_id == User.id, Penalty.group_id.in_(group_ids)))
+        .filter(User.id.in_(member_ids))
+        .group_by(User.id)
+    )
+
+    # Apply sorting based on the sort_by parameter
+    if sort_by == LeaderboardSortBy.TOTAL_PENALTIES:
+        base_query = base_query.order_by(func.count(Penalty.id).desc())
+    elif sort_by == LeaderboardSortBy.TOTAL_AMOUNT:
+        base_query = base_query.order_by(func.coalesce(func.sum(Penalty.amount), 0).desc())
+    elif sort_by == LeaderboardSortBy.PAID_AMOUNT:
+        base_query = base_query.order_by(
+            func.coalesce(
+                func.sum(case((Penalty.status == 'PAID', Penalty.amount), else_=0)), 0
+            ).desc()
+        )
+    elif sort_by == LeaderboardSortBy.UNPAID_AMOUNT:
+        base_query = base_query.order_by(unpaid_amount.desc())
+
+    leaderboard = base_query.all()
+    
+    # Format the response
+    result = []
+    for user in leaderboard:
+        result.append({
+            "user_id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "total_penalties": user.total_penalties,
+            "total_amount": float(user.total_amount),
+            "paid_amount": float(user.paid_amount),
+            "unpaid_amount": float(user.unpaid_amount)
+        })
+    
+    return {
+        "total_groups": len(group_ids),
+        "sort_by": sort_by,
+        "leaderboard": result
+    }
