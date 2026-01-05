@@ -14,6 +14,18 @@ user_groups = Table(
     Column('joined_at', DateTime, default=datetime.utcnow)
 )
 
+# Association table for many-to-many relationship between penalties and payments
+# Allows one payment to cover multiple penalties (bulk payment)
+# and one penalty to be split across multiple payments
+penalty_payments = Table(
+    'penalty_payments',
+    Base.metadata,
+    Column('penalty_id', Integer, ForeignKey('penalties.id'), primary_key=True),
+    Column('payment_id', Integer, ForeignKey('payments.id'), primary_key=True),
+    Column('amount', Float),  # Amount of this payment allocated to this specific penalty
+    Column('created_at', DateTime, default=datetime.utcnow)
+)
+
 class User(Base):
     __tablename__ = "users"
 
@@ -28,7 +40,7 @@ class User(Base):
     # Relationships
     groups = relationship("Group", secondary=user_groups, back_populates="members")
     penalties = relationship("Penalty", back_populates="user")
-    payments = relationship("Payment", back_populates="user")
+    # Payment relationship defined in Payment model with explicit foreign_keys
 
 class Group(Base):
     __tablename__ = "groups"
@@ -73,6 +85,7 @@ class Penalty(Base):
     group = relationship("Group", back_populates="penalties")
     rule = relationship("Rule", back_populates="penalties")
     proofs = relationship("Proof", back_populates="penalty")
+    payments = relationship("Payment", secondary=penalty_payments, back_populates="penalties")
 
 class Proof(Base):
     __tablename__ = "proofs"
@@ -90,8 +103,14 @@ class Payment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    amount = Column(Float)
+    amount = Column(Float)  # Total payment amount
+    payment_method = Column(String, default="CASH")  # CASH, UPI, BANK_TRANSFER, etc.
+    reference_id = Column(String, nullable=True)  # Transaction ID for online payments
+    approved_by_admin_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Admin who approved (for cash)
+    notes = Column(String, nullable=True)  # Admin notes about the payment
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    user = relationship("User", back_populates="payments")
+    user = relationship("User", foreign_keys=[user_id])
+    approved_by = relationship("User", foreign_keys=[approved_by_admin_id])
+    penalties = relationship("Penalty", secondary=penalty_payments, back_populates="payments")

@@ -124,6 +124,8 @@ class Penalty(PenaltyBase):
     rule_id: int
     status: str
     created_at: datetime
+    user_name: Optional[str] = None
+    rule_title: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -146,13 +148,30 @@ class Proof(ProofBase):
 # Payment schemas
 class PaymentBase(BaseModel):
     amount: float
+    payment_method: str = "CASH"  # CASH, UPI, BANK_TRANSFER, etc.
+    reference_id: Optional[str] = None  # Transaction ID for online payments
+    notes: Optional[str] = None  # Admin notes
 
 class PaymentCreate(PaymentBase):
     user_id: int
+    approved_by_admin_id: Optional[int] = None  # Admin who approved (for cash payments)
+    penalty_ids: List[int] = []  # List of penalty IDs this payment covers
 
 class Payment(PaymentBase):
     id: int
     user_id: int
+    approved_by_admin_id: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Schema for penalty-payment association
+class PenaltyPayment(BaseModel):
+    penalty_id: int
+    payment_id: int
+    amount: float  # Amount allocated to this specific penalty
     created_at: datetime
 
     class Config:
