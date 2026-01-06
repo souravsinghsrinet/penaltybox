@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import os
 
 from app.core.database import get_db
-from app.core.file_handler import save_upload_file, remove_file
+from app.core.storage import storage_service
+from app.core.background_tasks import task_service
 from app.models.models import Proof, Penalty, User
 from app.schemas.schemas import ProofCreate, Proof as ProofSchema
 from app.api.v1.auth import oauth2_scheme, get_current_user, get_current_admin_user
@@ -15,11 +16,31 @@ router = APIRouter()
 async def upload_proof(
     penalty_id: int,
     file: UploadFile = File(...),
+    reference: Optional[str] = Form(None),  # Optional reference/note (e.g., UPI transaction ID)
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)  # Any authenticated user can upload proof
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Upload a proof (screenshot) for a penalty payment
+    Upload a payment proof (screenshot) for a penalty.
+    
+    Process:
+    1. Validates file type (jpg, png only)
+    2. Saves original file to server
+    3. Creates proof record in database
+    4. Triggers background task to:
+       - Convert image to 100x100 PNG thumbnail
+       - Delete original file
+       - Update proof record with thumbnail path
+    
+    Args:
+        penalty_id: ID of the penalty
+        file: Image file (jpg or png)
+        reference: Optional reference/note (e.g., UPI transaction ID)
+        db: Database session
+        current_user: Authenticated user
+    
+    Returns:
+        Proof: Created proof record
     """
     # Check if penalty exists
     penalty = db.query(Penalty).filter(Penalty.id == penalty_id).first()
@@ -29,43 +50,59 @@ async def upload_proof(
             detail="Penalty not found"
         )
     
-    # Verify the penalty belongs to the current user (users can only upload proof for their own penalties)
+    # Verify the penalty belongs to the current user
     if penalty.user_id != current_user.id and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only upload proof for your own penalties"
         )
     
-    # Validate file type
-    allowed_types = [".jpg", ".jpeg", ".png", ".pdf"]
+    # Validate file type (only jpg and png for image processing)
+    allowed_types = [".jpg", ".jpeg", ".png"]
     file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in allowed_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type not allowed. Must be one of: {', '.join(allowed_types)}"
+            detail=f"File type not allowed. Only JPG and PNG images are supported."
         )
     
-    # Save the file
+    # Save the original file
     try:
-        file_path = save_upload_file(file)
+        file_path = await storage_service.save_file(file, folder="proofs")
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not upload file"
+            detail=f"Could not upload file: {str(e)}"
         )
     
-    # Create proof record
+    # Create proof record (image_url will be updated after background processing)
     db_proof = Proof(
         penalty_id=penalty_id,
-        image_url=file_path
+        image_url=file_path  # Initially points to original, will be updated to thumbnail
     )
     
     db.add(db_proof)
     db.commit()
     db.refresh(db_proof)
     
-    # Note: Admin will review and approve, then update status to PAID
-    # Don't automatically mark as PAID on upload
+    # Trigger background task for image processing
+    try:
+        success, thumbnail_path, error = task_service.process_image_to_thumbnail(
+            db=db,
+            proof_id=db_proof.id,
+            original_path=file_path
+            # size is now read from .env (THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
+        )
+        
+        if not success:
+            # Log error but don't fail the upload
+            print(f"Background processing failed for proof {db_proof.id}: {error}")
+    except Exception as e:
+        # Log error but don't fail the upload
+        print(f"Background task failed for proof {db_proof.id}: {str(e)}")
+    
+    # Refresh to get updated image_url (thumbnail path)
+    db.refresh(db_proof)
     
     return db_proof
 
@@ -121,9 +158,9 @@ async def delete_proof(
             detail="Proof not found"
         )
     
-    # Remove the file
+    # Remove the file using storage service
     if proof.image_url:
-        remove_file(proof.image_url)
+        storage_service.delete_file(proof.image_url)
     
     # Delete the database record
     db.delete(proof)

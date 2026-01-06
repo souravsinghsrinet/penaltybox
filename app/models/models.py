@@ -1,8 +1,15 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime, Table
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime, Table, Enum, Text, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
+import enum
 
 from app.core.database import Base
+
+# Enum for background task status
+class TaskStatus(str, enum.Enum):
+    STARTED = "STARTED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 # Association table for many-to-many relationship between users and groups
 user_groups = Table(
@@ -97,6 +104,23 @@ class Proof(Base):
 
     # Relationships
     penalty = relationship("Penalty", back_populates="proofs")
+    background_tasks = relationship("BackgroundTask", back_populates="proof")
+
+class BackgroundTask(Base):
+    __tablename__ = "background_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(String, unique=True, nullable=False, index=True)
+    task_type = Column(String, nullable=False)  # 'image_processing', 'cleanup', etc.
+    proof_id = Column(Integer, ForeignKey("proofs.id"), nullable=True)
+    status = Column(Enum(TaskStatus), nullable=False, default=TaskStatus.STARTED)
+    error = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = Column(DateTime, nullable=True)
+    task_metadata = Column(JSON, nullable=True)  # Additional task-specific data (renamed from 'metadata')
+
+    # Relationships
+    proof = relationship("Proof", back_populates="background_tasks")
 
 class Payment(Base):
     __tablename__ = "payments"
