@@ -101,10 +101,17 @@ class Proof(Base):
     penalty_id = Column(Integer, ForeignKey("penalties.id"))
     image_url = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Review fields
+    status = Column(String, default="PENDING")  # PENDING, APPROVED, DECLINED
+    reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    admin_note = Column(String, nullable=True)
 
     # Relationships
     penalty = relationship("Penalty", back_populates="proofs")
     background_tasks = relationship("BackgroundTask", back_populates="proof")
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
 
 class BackgroundTask(Base):
     __tablename__ = "background_tasks"

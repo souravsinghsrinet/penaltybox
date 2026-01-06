@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import datetime
 import os
 
@@ -15,6 +16,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for serving uploaded images
+# This allows accessing files like: http://localhost:8000/uploads/proofs/image.png
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Import and include routers
 from app.api.v1 import auth, groups, penalties, proofs, rules, users

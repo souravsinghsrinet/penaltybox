@@ -137,10 +137,17 @@ class ProofBase(BaseModel):
 class ProofCreate(ProofBase):
     penalty_id: int
 
+class ProofReview(BaseModel):
+    admin_note: Optional[str] = None
+
 class Proof(ProofBase):
     id: int
     penalty_id: int
     created_at: datetime
+    status: str = "PENDING"  # PENDING, APPROVED, DECLINED
+    reviewed_by: Optional[int] = None
+    reviewed_at: Optional[datetime] = None
+    admin_note: Optional[str] = None
 
     class Config:
         from_attributes = True
