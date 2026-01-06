@@ -7,7 +7,6 @@ Create Date: 2026-01-06
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import ENUM
 
 
 # revision identifiers, used by Alembic.
@@ -18,40 +17,62 @@ depends_on = None
 
 
 def upgrade():
-    # Create ENUM type for task status (will skip if exists)
-    task_status_enum = ENUM('STARTED', 'COMPLETED', 'FAILED', name='taskstatus', create_type=False)
-    
-    # Check if table already exists to avoid errors on re-run
+    # Get database connection
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     
+    # Create ENUM type if it doesn't exist (handles both fresh and existing databases)
+    conn.execute(sa.text("""
+        DO $$ BEGIN
+            CREATE TYPE taskstatus AS ENUM ('STARTED', 'COMPLETED', 'FAILED');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """))
+    
+    # Create table if it doesn't exist
     if 'background_tasks' not in inspector.get_table_names():
-        # Create background_tasks table
-        op.create_table(
-            'background_tasks',
-            sa.Column('id', sa.Integer(), primary_key=True, index=True),
-            sa.Column('task_id', sa.String(), unique=True, nullable=False, index=True),
-            sa.Column('task_type', sa.String(), nullable=False),  # 'image_processing', 'cleanup', etc.
-            sa.Column('proof_id', sa.Integer(), sa.ForeignKey('proofs.id'), nullable=True),
-            sa.Column('status', task_status_enum, nullable=False, server_default='STARTED'),
-            sa.Column('error', sa.Text(), nullable=True),
-            sa.Column('started_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-            sa.Column('ended_at', sa.DateTime(), nullable=True),
-            sa.Column('task_metadata', sa.JSON(), nullable=True),  # Renamed from 'metadata' to avoid conflict
-        )
+        # Create table with VARCHAR for status column first
+        conn.execute(sa.text("""
+            CREATE TABLE background_tasks (
+                id SERIAL PRIMARY KEY,
+                task_id VARCHAR UNIQUE NOT NULL,
+                task_type VARCHAR NOT NULL,
+                proof_id INTEGER REFERENCES proofs(id),
+                status VARCHAR NOT NULL DEFAULT 'STARTED',
+                error TEXT,
+                started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                ended_at TIMESTAMP,
+                task_metadata JSON
+            )
+        """))
         
-        # Create index on proof_id for faster lookups
-        op.create_index('idx_background_tasks_proof_id', 'background_tasks', ['proof_id'])
+        # Drop the default temporarily to allow type change
+        conn.execute(sa.text("ALTER TABLE background_tasks ALTER COLUMN status DROP DEFAULT"))
         
-        # Create index on status for filtering pending tasks
-        op.create_index('idx_background_tasks_status', 'background_tasks', ['status'])
+        # Now alter the status column to use the ENUM type
+        conn.execute(sa.text("""
+            ALTER TABLE background_tasks 
+            ALTER COLUMN status TYPE taskstatus 
+            USING status::taskstatus
+        """))
+        
+        # Re-add the default with ENUM type
+        conn.execute(sa.text("ALTER TABLE background_tasks ALTER COLUMN status SET DEFAULT 'STARTED'::taskstatus"))
+        
+        # Create indexes
+        conn.execute(sa.text("CREATE INDEX idx_background_tasks_task_id ON background_tasks(task_id)"))
+        conn.execute(sa.text("CREATE INDEX idx_background_tasks_proof_id ON background_tasks(proof_id)"))
+        conn.execute(sa.text("CREATE INDEX idx_background_tasks_status ON background_tasks(status)"))
 
 
 def downgrade():
-    op.drop_index('idx_background_tasks_status', 'background_tasks')
-    op.drop_index('idx_background_tasks_proof_id', 'background_tasks')
-    op.drop_table('background_tasks')
+    # Drop table and indexes if they exist
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    
+    if 'background_tasks' in inspector.get_table_names():
+        conn.execute(sa.text("DROP TABLE IF EXISTS background_tasks CASCADE"))
     
     # Drop ENUM type
-    task_status_enum = ENUM('STARTED', 'COMPLETED', 'FAILED', name='taskstatus', create_type=False)
-    task_status_enum.drop(op.get_bind(), checkfirst=True)
+    conn.execute(sa.text("DROP TYPE IF EXISTS taskstatus CASCADE"))
