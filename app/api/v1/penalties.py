@@ -66,6 +66,7 @@ def get_penalties(
     """
     Get penalties with optional group_id filter
     Includes user name and rule title
+    Sorted by created_at in descending order (newest first)
     """
     from app.models.models import Rule
     
@@ -74,7 +75,8 @@ def get_penalties(
     if group_id is not None:
         query = query.filter(Penalty.group_id == group_id)
     
-    penalties = query.all()
+    # Sort by created_at in descending order (newest first)
+    penalties = query.order_by(Penalty.created_at.desc()).all()
     
     # Enrich penalties with user names and rule titles
     result = []
@@ -115,10 +117,11 @@ def get_user_penalties(
     """
     Get penalties for a specific user
     Includes user name and rule title
+    Sorted by created_at in descending order (newest first)
     """
     from app.models.models import Rule
     
-    penalties = db.query(Penalty).filter(Penalty.user_id == user_id).all()
+    penalties = db.query(Penalty).filter(Penalty.user_id == user_id).order_by(Penalty.created_at.desc()).all()
     
     # Enrich penalties with user names and rule titles
     result = []
