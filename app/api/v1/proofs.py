@@ -13,7 +13,7 @@ from app.api.v1.auth import oauth2_scheme, get_current_user, get_current_admin_u
 
 router = APIRouter()
 
-@router.get("/", response_model=List[dict])
+@router.get("", response_model=List[dict])
 async def get_proofs(
     status_filter: Optional[str] = None,  # PENDING, APPROVED, DECLINED
     db: Session = Depends(get_db),

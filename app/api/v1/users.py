@@ -11,7 +11,7 @@ from app.core.security import verify_password, get_password_hash
 
 router = APIRouter()
 
-@router.get("/", response_model=List[UserSimple])
+@router.get("", response_model=List[UserSimple])
 def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin_user)

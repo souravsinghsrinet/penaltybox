@@ -9,7 +9,7 @@ from app.api.v1.auth import oauth2_scheme, get_current_user, get_current_admin_u
 
 router = APIRouter()
 
-@router.post("/", response_model=PenaltySchema, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PenaltySchema, status_code=status.HTTP_201_CREATED)
 def create_penalty(
     penalty: PenaltyCreate,
     group_id: int,
@@ -57,7 +57,7 @@ def create_penalty(
     db.refresh(db_penalty)
     return db_penalty
 
-@router.get("/", response_model=List[PenaltySchema])
+@router.get("", response_model=List[PenaltySchema])
 def get_penalties(
     group_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),

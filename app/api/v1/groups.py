@@ -39,7 +39,7 @@ def get_user_role_in_group(db: Session, user_id: int, group_id: int) -> str:
     ).first()
     return result.role if result else None
 
-@router.get("/", response_model=List[GroupSimple])
+@router.get("", response_model=List[GroupSimple])
 def get_groups(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -86,7 +86,7 @@ def get_groups(
     
     return result
 
-@router.post("/", response_model=GroupSchema, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=GroupSchema, status_code=status.HTTP_201_CREATED)
 def create_group(
     group: GroupCreate,
     db: Session = Depends(get_db),
